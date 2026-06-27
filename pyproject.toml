@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oxo"
+version = "0.1.0"
+description = "The Python SDK for writing OXO agents hosted by the goxo engine."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "burogurama" }]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/burogurama/oxo-python"
+Engine = "https://github.com/burogurama/goxo"
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.5", "mypy>=1.10"]
+
+[tool.setuptools.packages.find]
+include = ["oxo*"]
+
+[tool.pytest.ini_options]
+python_files = ["*_test.py"]
+python_functions = ["test*"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "BLE"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
