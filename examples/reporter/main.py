@@ -4,8 +4,6 @@ It logs a banner on start, then for each scanned IP asset emits a vulnerability
 report. It is a shape demonstration, not a real scanner.
 """
 
-from __future__ import annotations
-
 import oxo
 
 agent = oxo.Agent()
