@@ -91,4 +91,4 @@ mypy .
 pytest
 ```
 
-Requires Python 3.12+.
+Requires Python 3.14+.

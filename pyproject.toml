@@ -7,7 +7,7 @@ name = "oxo"
 version = "0.1.0"
 description = "The Python SDK for writing OXO agents hosted by the goxo engine."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 license = { text = "MIT" }
 authors = [{ name = "burogurama" }]
 dependencies = []
@@ -38,5 +38,5 @@ select = ["E", "F", "W", "I", "BLE"]
 force-single-line = true
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.14"
 strict = true
