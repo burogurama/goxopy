@@ -13,7 +13,7 @@ authors = [{ name = "burogurama" }]
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/burogurama/oxo-python"
+Homepage = "https://github.com/burogurama/goxopy"
 Engine = "https://github.com/burogurama/goxo"
 
 [project.optional-dependencies]

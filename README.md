@@ -1,16 +1,16 @@
-# oxo-python
+# goxopy
 
 The Python SDK for writing [OXO](https://github.com/Ostorlab/oxo) agents.
 
-oxo-python is the thin Python client for the
+goxopy is the thin Python client for the
 [goxo](https://github.com/burogurama/goxo) engine: goxo does the OXO
-heavy-lifting and drives your agent as a handler process, and oxo-python lets
+heavy-lifting and drives your agent as a handler process, and goxopy lets
 you write that handler in plain Python. You register a function per selector, an
 optional start hook, and call `run`; messages arrive as plain dicts and you
 never touch the wire, protobuf, or any OXO detail.
 
 For the engine, the note protocol, and how to package a handler into an agent
-image, see the goxo repo and its `docs/`. This README is just the Python API.
+image, see the goxo repo's README. This README is just the Python API.
 
 Zero runtime dependencies — standard library only.
 
@@ -69,7 +69,7 @@ Inside a handler, the **`Context`** is your window onto the run:
 - `ctx.log` — a `logging.Logger` writing to **stderr** (stdout is reserved for the protocol).
 - `ctx.emit(selector, data)` — publish a dict on a declared output selector,
   synchronously; it raises if the engine rejected the emit (an undeclared
-  selector, or a publish failure).
+  selector, or a publish failure) or closed the connection before acknowledging it.
 
 A **`Message`** carries `selector`, `data` (the proto fields as a plain dict),
 and `meta` (`message_id`, `headers`).
@@ -78,8 +78,8 @@ and `meta` (`message_id`, `headers`).
 
 A handler becomes an OXO agent when packaged into a Docker image alongside the
 goxo engine. Your handler imports `oxo` only, never goxo, so the engine is
-chosen at packaging time. See goxo's `docs/image.md` and `docs/building.md` for
-the image contract and the build steps.
+chosen at packaging time. See goxo's README for the image contract and the
+build steps.
 
 ## Development
 
