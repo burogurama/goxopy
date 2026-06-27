@@ -4,8 +4,6 @@ Engine to handler: init, start, deliver, emit_ack, shutdown.
 Handler to engine: pickup, emit, done.
 """
 
-from __future__ import annotations
-
 import collections.abc
 import dataclasses
 from typing import Any

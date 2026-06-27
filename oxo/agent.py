@@ -7,15 +7,12 @@ its own thread, so one process handles several at once. Logs go to stderr;
 stdout is reserved for the protocol.
 """
 
-from __future__ import annotations
-
 import collections.abc
 import logging
 import sys
 import threading
 from typing import Any
 from typing import BinaryIO
-from typing import Callable
 from typing import overload
 
 from oxo import connection
@@ -25,11 +22,11 @@ from oxo._note import wire
 
 # A message handler. Raising fails the message: the engine nacks it (poison
 # messages are dropped, not requeued).
-MessageHandler = Callable[[context.Context, context.Message], None]
+type MessageHandler = collections.abc.Callable[[context.Context, context.Message], None]
 
 # A start-phase hook, an optional lifecycle hook any agent may implement whether
 # or not it consumes messages. Raising fails the start phase.
-StartHook = Callable[[context.Context], None]
+type StartHook = collections.abc.Callable[[context.Context], None]
 
 
 def _stderr_logger() -> logging.Logger:
@@ -63,14 +60,16 @@ class Agent:
         self._log = _LOGGER
 
     @overload
-    def on_message(self, selector: str, fn: None = None) -> Callable[[MessageHandler], MessageHandler]: ...
+    def on_message(
+        self, selector: str, fn: None = None
+    ) -> collections.abc.Callable[[MessageHandler], MessageHandler]: ...
 
     @overload
     def on_message(self, selector: str, fn: MessageHandler) -> Agent: ...
 
     def on_message(
         self, selector: str, fn: MessageHandler | None = None
-    ) -> Callable[[MessageHandler], MessageHandler] | Agent:
+    ) -> collections.abc.Callable[[MessageHandler], MessageHandler] | Agent:
         """Register fn as the handler for selector.
 
         Usable as a decorator (``@agent.on_message("v3.asset.ip")``) or called
@@ -90,12 +89,12 @@ class Agent:
         return self
 
     @overload
-    def on_start(self, fn: None = None) -> Callable[[StartHook], StartHook]: ...
+    def on_start(self, fn: None = None) -> collections.abc.Callable[[StartHook], StartHook]: ...
 
     @overload
     def on_start(self, fn: StartHook) -> Agent: ...
 
-    def on_start(self, fn: StartHook | None = None) -> Callable[[StartHook], StartHook] | Agent:
+    def on_start(self, fn: StartHook | None = None) -> collections.abc.Callable[[StartHook], StartHook] | Agent:
         """Register a start-phase hook.
 
         Usable as a decorator (``@agent.on_start``) or called directly. Hooks
@@ -122,7 +121,7 @@ class Agent:
         """
         self._run(sys.stdin.buffer, sys.stdout.buffer)
 
-    def _message_decorator(self, selector: str) -> Callable[[MessageHandler], MessageHandler]:
+    def _message_decorator(self, selector: str) -> collections.abc.Callable[[MessageHandler], MessageHandler]:
         def register(fn: MessageHandler) -> MessageHandler:
             self._on_message[selector] = fn
             return fn

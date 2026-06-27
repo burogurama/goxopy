@@ -5,8 +5,6 @@ pickup, emit, and done frames from its stdout, then asserts ordering, concurrent
 dispatch, the emit/emit_ack round-trip, and the error and missing-handler cases.
 """
 
-from __future__ import annotations
-
 import collections.abc
 import threading
 from typing import BinaryIO

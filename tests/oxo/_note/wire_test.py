@@ -1,7 +1,5 @@
 """Tests for the note wire framing."""
 
-from __future__ import annotations
-
 import io
 import struct
 

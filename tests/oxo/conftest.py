@@ -1,7 +1,5 @@
 """Shared fixtures: a fake engine that drives the SDK over real byte pipes."""
 
-from __future__ import annotations
-
 import collections.abc
 import dataclasses
 import io
@@ -118,7 +116,7 @@ class FakeEngine:
         while len(self._result.dones) < expected_dones:
             try:
                 raw: dict[str, Any] = wire.read_frame(self._engine_read)
-            except (EOFError, wire.Error):
+            except EOFError, wire.Error:
                 return
             self._record(raw)
 

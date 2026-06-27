@@ -1,7 +1,5 @@
 """Wire framing for notes: a 4-byte big-endian length prefix then a JSON body."""
 
-from __future__ import annotations
-
 import collections.abc
 import json
 import struct

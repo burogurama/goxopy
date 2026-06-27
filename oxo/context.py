@@ -1,7 +1,5 @@
 """The handler-facing values: Context, Message, Identity, and Meta."""
 
-from __future__ import annotations
-
 import collections.abc
 import dataclasses
 import logging

@@ -6,8 +6,6 @@ run loop (the only reader) routes back to it by id. The connection closes when
 the engine closes stdin, releasing any emit awaiting an ack that will not come.
 """
 
-from __future__ import annotations
-
 import collections.abc
 import queue
 import threading
