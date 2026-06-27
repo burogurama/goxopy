@@ -52,7 +52,7 @@ See [`examples/reporter`](examples/reporter) for the runnable version.
 agent = oxo.Agent()
 agent.on_message(selector, fn)   # one handler per input selector; also usable as @agent.on_message(selector)
 agent.on_start(fn)               # optional, runs once at boot; also usable as @agent.on_start
-agent.run()                      # serve one engine phase, then return
+agent.run()                      # serve the process until the engine closes stdin, then return
 ```
 
 `on_message` and `on_start` may be used as decorators or called directly; called

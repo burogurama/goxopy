@@ -34,7 +34,7 @@ class Connection:
     def __init__(self, w: BinaryIO) -> None:
         self._w = w
         self._write_lock = threading.Lock()
-        self._lock = threading.Lock()
+        self._state_lock = threading.Lock()
         self._next_emit = 0
         self._acks: dict[int, queue.SimpleQueue[note.EmitAck]] = {}
         self._closed = False
@@ -67,7 +67,9 @@ class Connection:
                 is unconfirmed.
         """
         ack_queue: queue.SimpleQueue[note.EmitAck] = queue.SimpleQueue()
-        with self._lock:
+        with self._state_lock:
+            if self._closed is True:
+                raise EngineClosedError(f"oxo: emit {selector!r} unacknowledged: engine closed the connection")
             self._next_emit += 1
             emit_id: int = self._next_emit
             self._acks[emit_id] = ack_queue
@@ -80,7 +82,7 @@ class Connection:
             if ack.status == note.STATUS_ERROR:
                 raise EmitRejectedError(f"oxo: emit {selector!r} rejected: {ack.error}")
         finally:
-            with self._lock:
+            with self._state_lock:
                 self._acks.pop(emit_id, None)
 
     def route_ack(self, ack: note.EmitAck) -> None:
@@ -89,7 +91,7 @@ class Connection:
         An ack with no waiter (the emit already returned, or none was sent) is
         dropped.
         """
-        with self._lock:
+        with self._state_lock:
             ack_queue: queue.SimpleQueue[note.EmitAck] | None = self._acks.get(ack.id)
         if ack_queue is not None:
             ack_queue.put(ack)
@@ -100,7 +102,7 @@ class Connection:
         The engine has closed stdin, so no further acks will arrive; each waiter
         is woken with a sentinel that surfaces as an EngineClosedError.
         """
-        with self._lock:
+        with self._state_lock:
             if self._closed is True:
                 return
             self._closed = True

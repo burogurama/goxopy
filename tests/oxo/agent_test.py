@@ -6,6 +6,7 @@ dispatch, the emit/emit_ack round-trip, and the error and missing-handler cases.
 """
 
 import collections.abc
+import struct
 import threading
 from typing import BinaryIO
 from typing import Callable
@@ -288,3 +289,65 @@ def testRun_whenInitThenEOF_exitsCleanly(
     result = make_engine(target, []).run(lambda w: None, expected_dones=0)
 
     assert result.run_error is None
+
+
+def testRun_whenShutdownNote_exitsCleanlyWithNoDone(
+    make_engine: EngineFactory,
+) -> None:
+    target = agent.Agent()
+
+    def write_phase(w: BinaryIO) -> None:
+        wire.write_frame(w, {"type": note.TYPE_SHUTDOWN})
+
+    result = make_engine(target, []).run(write_phase, expected_dones=0)
+
+    assert result.run_error is None
+    assert result.dones == {}
+
+
+def testRun_whenUnknownNoteType_ignoresItAndContinues(
+    make_engine: EngineFactory,
+) -> None:
+    target = agent.Agent()
+    target.on_message("v3.asset.ip", lambda ctx, msg: None)
+
+    def write_phase(w: BinaryIO) -> None:
+        wire.write_frame(w, {"type": "v9.future.note"})
+        wire.write_frame(w, conftest.deliver_note(1, "v3.asset.ip", {"host": "10.0.0.1"}))
+
+    result = make_engine(target, []).run(write_phase, expected_dones=1)
+
+    assert result.run_error is None
+    assert result.dones[1]["status"] == note.STATUS_OK
+
+
+def testRun_whenMalformedFrameBody_raisesProtocolError(
+    make_engine: EngineFactory,
+) -> None:
+    target = agent.Agent()
+
+    def write_phase(w: BinaryIO) -> None:
+        body: bytes = b"not-json"
+        w.write(struct.pack(">I", len(body)))
+        w.write(body)
+        w.flush()
+
+    result = make_engine(target, []).run(write_phase, expected_dones=0)
+
+    assert isinstance(result.run_error, agent.ProtocolError)
+
+
+def testRun_whenDeliverIDNotNumeric_raisesProtocolError(
+    make_engine: EngineFactory,
+) -> None:
+    target = agent.Agent()
+    target.on_message("v3.asset.ip", lambda ctx, msg: None)
+
+    def write_phase(w: BinaryIO) -> None:
+        bad: dict[str, object] = conftest.deliver_note(1, "v3.asset.ip", {})
+        bad["id"] = None
+        wire.write_frame(w, bad)
+
+    result = make_engine(target, []).run(write_phase, expected_dones=0)
+
+    assert isinstance(result.run_error, agent.ProtocolError)

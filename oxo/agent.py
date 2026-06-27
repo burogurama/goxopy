@@ -52,7 +52,11 @@ class ProtocolError(Error):
 
 
 class Agent:
-    """Collects the handlers an author registers, then runs one engine phase."""
+    """Collects the handlers an author registers, then serves the handler process.
+
+    run reads the engine's init, then handles the start phase and every
+    delivered message until the engine closes stdin.
+    """
 
     def __init__(self) -> None:
         self._on_message: dict[str, MessageHandler] = {}
@@ -139,17 +143,19 @@ class Agent:
         )
         conn: connection.Connection = connection.Connection(w)
         workers: list[threading.Thread] = []
-        self._serve(r, conn, ident, init.config, workers)
-        conn.close_acks()
-        for worker in workers:
-            worker.join()
+        try:
+            self._serve(r, conn, ident, init.config, workers)
+        finally:
+            conn.close_acks()
+            for worker in workers:
+                worker.join()
 
     def _read_init(self, r: BinaryIO) -> note.Init:
         try:
             body: dict[str, Any] = wire.read_frame(r)
+            init: note.Init = note.Init.from_dict(body)
         except (EOFError, wire.Error) as e:
             raise ProtocolError(f"oxo: read init: {e}") from e
-        init: note.Init = note.Init.from_dict(body)
         if init.type != note.TYPE_INIT:
             raise ProtocolError(f"oxo: expected init, got {init.type!r}")
         if init.protocol != note.PROTOCOL_VERSION:
@@ -167,7 +173,8 @@ class Agent:
         """Read notes until EOF (clean shutdown) or a malformed frame (error).
 
         On EOF it returns so the caller can release waiting emits and join the
-        in-flight handlers. A malformed frame raises ProtocolError.
+        in-flight handlers. A malformed frame or undecodable note raises
+        ProtocolError.
         """
         while True:
             try:
@@ -176,7 +183,10 @@ class Agent:
                 return
             except wire.Error as e:
                 raise ProtocolError(f"oxo: read note: {e}") from e
-            self._dispatch(body, conn, ident, config, workers)
+            try:
+                self._dispatch(body, conn, ident, config, workers)
+            except wire.Error as e:
+                raise ProtocolError(f"oxo: dispatch note: {e}") from e
 
     def _dispatch(
         self,
@@ -210,7 +220,7 @@ class Agent:
         conn.write_note(note.Pickup(id=dlv.id).to_dict())
         worker: threading.Thread = threading.Thread(target=self._handle_deliver, args=(conn, ident, config, dlv))
         worker.start()
-        workers.append(worker)
+        self._track(workers, worker)
 
     def _dispatch_start(
         self,
@@ -221,6 +231,16 @@ class Agent:
     ) -> None:
         worker: threading.Thread = threading.Thread(target=self._handle_start, args=(conn, ident, config))
         worker.start()
+        self._track(workers, worker)
+
+    def _track(self, workers: list[threading.Thread], worker: threading.Thread) -> None:
+        """Record a started worker, pruning finished ones first.
+
+        Only the run loop touches workers, so this is race-free. Pruning keeps
+        the list bounded by the number of in-flight handlers rather than by the
+        total number of messages the process has handled.
+        """
+        workers[:] = [w for w in workers if w.is_alive() is True]
         workers.append(worker)
 
     def _handle_deliver(

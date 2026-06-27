@@ -31,13 +31,18 @@ def write_frame(w: BinaryIO, body: collections.abc.Mapping[str, Any]) -> None:
 
     Raises:
         FrameTooLargeError: If the encoded body exceeds MAX_FRAME_SIZE.
+        Error: If the underlying stream could not be written (the engine closed
+            its read end).
     """
     encoded: bytes = json.dumps(body, separators=(",", ":")).encode("utf-8")
     if len(encoded) > MAX_FRAME_SIZE:
         raise FrameTooLargeError(f"note: frame exceeds {MAX_FRAME_SIZE} bytes")
-    w.write(_HEADER.pack(len(encoded)))
-    w.write(encoded)
-    w.flush()
+    try:
+        w.write(_HEADER.pack(len(encoded)))
+        w.write(encoded)
+        w.flush()
+    except OSError as e:
+        raise Error(f"note: write frame failed: {e}") from e
 
 
 def read_frame(r: BinaryIO) -> dict[str, Any]:
@@ -53,14 +58,17 @@ def read_frame(r: BinaryIO) -> dict[str, Any]:
         EOFError: When the stream is cleanly at a frame boundary (the engine
             closed stdin) or when a frame is truncated.
         FrameTooLargeError: If the declared length exceeds MAX_FRAME_SIZE.
-        Error: If the body is not a JSON object.
+        Error: If the body is not valid JSON or is not a JSON object.
     """
     header: bytes = _read_exactly(r, _HEADER.size)
     (length,) = _HEADER.unpack(header)
     if length > MAX_FRAME_SIZE:
         raise FrameTooLargeError(f"note: frame exceeds {MAX_FRAME_SIZE} bytes")
     body: bytes = _read_exactly(r, length)
-    decoded: Any = json.loads(body)
+    try:
+        decoded: Any = json.loads(body)
+    except json.JSONDecodeError as e:
+        raise Error(f"note: frame body is not valid JSON: {e}") from e
     if isinstance(decoded, dict) is False:
         raise Error("note: frame body is not a JSON object")
     result: dict[str, Any] = decoded
@@ -73,7 +81,12 @@ def _read_exactly(r: BinaryIO, n: int) -> bytes:
     A clean stream end at a read boundary and a short read mid-frame both raise
     EOFError; the run loop treats EOF at a frame boundary as a normal shutdown.
     """
-    buf: bytearray = bytearray()
+    first: bytes = r.read(n)
+    if len(first) == n:
+        return first
+    if len(first) == 0:
+        raise EOFError("note: stream closed")
+    buf: bytearray = bytearray(first)
     while len(buf) < n:
         chunk: bytes = r.read(n - len(buf))
         if len(chunk) == 0:

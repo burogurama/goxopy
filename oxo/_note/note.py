@@ -8,6 +8,8 @@ import collections.abc
 import dataclasses
 from typing import Any
 
+from oxo._note import wire
+
 # Note type tags carried in every note's "type" field.
 TYPE_INIT = "init"
 TYPE_START = "start"
@@ -29,6 +31,20 @@ PROTOCOL_VERSION = 2
 # The reserved id for the start phase: a start note carries no id, so its done
 # echoes 0 and its emits carry no deliver id.
 START_ID = 0
+
+
+def _int_field(raw: collections.abc.Mapping[str, Any], key: str) -> int:
+    """Read an integer note field, defaulting an absent key to 0.
+
+    A present field that is null or not a number is a malformed note rather
+    than a missing one, so it raises wire.Error to follow the malformed-frame
+    path rather than escaping as a raw TypeError or ValueError.
+    """
+    value: Any = raw.get(key, 0)
+    try:
+        return int(value)
+    except (TypeError, ValueError) as e:
+        raise wire.Error(f"note: field {key!r} is not an integer: {value!r}") from e
 
 
 @dataclasses.dataclass(frozen=True)
@@ -73,6 +89,9 @@ class Init:
 
     It hands the handler the protocol version, identity, agent config, and the
     declared input selectors. Config and inputs may be absent.
+
+    inputs is accepted from the wire but unused: the engine binds the queue to
+    the declared inputs, so the handler does not route by them.
     """
 
     type: str
@@ -86,7 +105,7 @@ class Init:
         """Read an init note from its decoded JSON body."""
         return cls(
             type=str(raw.get("type", "")),
-            protocol=int(raw.get("protocol", 0)),
+            protocol=_int_field(raw, "protocol"),
             identity=Identity.from_dict(raw.get("identity", {})),
             config=raw.get("config"),
             inputs=raw.get("inputs"),
@@ -112,7 +131,7 @@ class Deliver:
         """Read a deliver note from its decoded JSON body."""
         return cls(
             type=str(raw.get("type", "")),
-            id=int(raw.get("id", 0)),
+            id=_int_field(raw, "id"),
             selector=str(raw.get("selector", "")),
             data=raw.get("data") or {},
             meta=Meta.from_dict(raw.get("meta")),
@@ -137,7 +156,7 @@ class EmitAck:
         """Read an emit_ack note from its decoded JSON body."""
         return cls(
             type=str(raw.get("type", "")),
-            id=int(raw.get("id", 0)),
+            id=_int_field(raw, "id"),
             status=str(raw.get("status", "")),
             error=str(raw.get("error", "")),
         )
