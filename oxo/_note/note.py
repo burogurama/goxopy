@@ -1,6 +1,6 @@
 """Note types for the goxo engine handler IPC.
 
-Engine to handler: init, start, deliver, emit_ack, shutdown.
+Engine to handler: init, deliver, emit_ack, shutdown.
 Handler to engine: pickup, emit, done.
 """
 
@@ -12,7 +12,6 @@ from oxo._note import wire
 
 # Note type tags carried in every note's "type" field.
 TYPE_INIT = "init"
-TYPE_START = "start"
 TYPE_DELIVER = "deliver"
 TYPE_EMIT_ACK = "emit_ack"
 TYPE_SHUTDOWN = "shutdown"
@@ -27,10 +26,6 @@ STATUS_ERROR = "error"
 # The note IPC version this handler speaks. The engine declares its version in
 # init; a mismatch means the wire contract has diverged.
 PROTOCOL_VERSION = 2
-
-# The reserved id for the start phase: a start note carries no id, so its done
-# echoes 0 and its emits carry no deliver id.
-START_ID = 0
 
 
 def _int_field(raw: collections.abc.Mapping[str, Any], key: str) -> int:
@@ -183,9 +178,8 @@ class Emit:
     """A handler's request to publish a message on one of its output selectors.
 
     Deliver names the message (a deliver id) this emit was produced for, so the
-    engine stamps that message's agent chain; for a start emit there is no
-    message, so deliver is 0 and is omitted from the wire. Id is the emit's own
-    id, echoed by the emit_ack.
+    engine stamps that message's agent chain. Id is the emit's own id, echoed by
+    the emit_ack.
     """
 
     id: int
@@ -201,7 +195,7 @@ class Emit:
             "selector": self.selector,
             "data": self.data,
         }
-        if self.deliver != START_ID:
+        if self.deliver:
             body["deliver"] = self.deliver
         return body
 
@@ -230,7 +224,7 @@ def done_for(deliver_id: int, error: str | None) -> Done:
     """Build a deliver's terminal done.
 
     Args:
-        deliver_id: The id of the message (or start phase) this done ends.
+        deliver_id: The id of the message this done ends.
         error: The failure text, or None when the work completed cleanly.
 
     Returns:

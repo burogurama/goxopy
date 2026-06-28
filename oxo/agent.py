@@ -1,10 +1,9 @@
 """The Agent: handler registration and the engine run loop.
 
-An author registers a handler per selector and an optional start hook, then
-calls run. run reads the engine's init, then serves the start phase and every
-delivered message until the engine closes stdin. Each deliver and start runs on
-its own thread, so one process handles several at once. Logs go to stderr;
-stdout is reserved for the protocol.
+An author registers a handler per selector, then calls run. run reads the
+engine's init, then serves every delivered message until the engine closes
+stdin. Each deliver runs on its own thread, so one process handles several at
+once. Logs go to stderr; stdout is reserved for the protocol.
 """
 
 import collections.abc
@@ -23,10 +22,6 @@ from oxo._note import wire
 # A message handler. Raising fails the message: the engine nacks it (poison
 # messages are dropped, not requeued).
 type MessageHandler = collections.abc.Callable[[context.Context, context.Message], None]
-
-# A start-phase hook, an optional lifecycle hook any agent may implement whether
-# or not it consumes messages. Raising fails the start phase.
-type StartHook = collections.abc.Callable[[context.Context], None]
 
 
 def _stderr_logger() -> logging.Logger:
@@ -54,13 +49,12 @@ class ProtocolError(Error):
 class Agent:
     """Collects the handlers an author registers, then serves the handler process.
 
-    run reads the engine's init, then handles the start phase and every
-    delivered message until the engine closes stdin.
+    run reads the engine's init, then handles every delivered message until the
+    engine closes stdin.
     """
 
     def __init__(self) -> None:
         self._on_message: dict[str, MessageHandler] = {}
-        self._on_start: list[StartHook] = []
         self._log = _LOGGER
 
     @overload
@@ -92,29 +86,6 @@ class Agent:
         self._on_message[selector] = fn
         return self
 
-    @overload
-    def on_start(self, fn: None = None) -> collections.abc.Callable[[StartHook], StartHook]: ...
-
-    @overload
-    def on_start(self, fn: StartHook) -> Agent: ...
-
-    def on_start(self, fn: StartHook | None = None) -> collections.abc.Callable[[StartHook], StartHook] | Agent:
-        """Register a start-phase hook.
-
-        Usable as a decorator (``@agent.on_start``) or called directly. Hooks
-        run in registration order; the first to fail stops the phase.
-
-        Args:
-            fn: The hook; omitted when used as a decorator.
-
-        Returns:
-            The decorator when fn is omitted, otherwise the agent for chaining.
-        """
-        if fn is None:
-            return self._start_decorator
-        self._on_start.append(fn)
-        return self
-
     def run(self) -> None:
         """Serve the handler process's whole life on stdin/stdout.
 
@@ -131,10 +102,6 @@ class Agent:
             return fn
 
         return register
-
-    def _start_decorator(self, fn: StartHook) -> StartHook:
-        self._on_start.append(fn)
-        return fn
 
     def _run(self, r: BinaryIO, w: BinaryIO) -> None:
         init: note.Init = self._read_init(r)
@@ -199,8 +166,6 @@ class Agent:
         note_type: str = str(body.get("type", ""))
         if note_type == note.TYPE_DELIVER:
             self._dispatch_deliver(body, conn, ident, config, workers)
-        elif note_type == note.TYPE_START:
-            self._dispatch_start(conn, ident, config, workers)
         elif note_type == note.TYPE_EMIT_ACK:
             conn.route_ack(note.EmitAck.from_dict(body))
         elif note_type == note.TYPE_SHUTDOWN:
@@ -219,17 +184,6 @@ class Agent:
         dlv: note.Deliver = note.Deliver.from_dict(body)
         conn.write_note(note.Pickup(id=dlv.id).to_dict())
         worker: threading.Thread = threading.Thread(target=self._handle_deliver, args=(conn, ident, config, dlv))
-        worker.start()
-        self._track(workers, worker)
-
-    def _dispatch_start(
-        self,
-        conn: connection.Connection,
-        ident: context.Identity,
-        config: collections.abc.Mapping[str, Any] | None,
-        workers: list[threading.Thread],
-    ) -> None:
-        worker: threading.Thread = threading.Thread(target=self._handle_start, args=(conn, ident, config))
         worker.start()
         self._track(workers, worker)
 
@@ -280,30 +234,6 @@ class Agent:
             fn(ctx, msg)
         except Exception as e:  # noqa: BLE001 — a handler may raise anything; one bad message must not crash the process.
             return f"oxo: handler raised: {e}"
-        return None
-
-    def _handle_start(
-        self,
-        conn: connection.Connection,
-        ident: context.Identity,
-        config: collections.abc.Mapping[str, Any] | None,
-    ) -> None:
-        """Run the start hooks in order and send done under the reserved start id."""
-        error: str | None = self._call_start(conn, ident, config)
-        self._report_done(conn, note.START_ID, error)
-
-    def _call_start(
-        self,
-        conn: connection.Connection,
-        ident: context.Identity,
-        config: collections.abc.Mapping[str, Any] | None,
-    ) -> str | None:
-        ctx: context.Context = context.Context(ident, config, self._log, conn, note.START_ID)
-        try:
-            for fn in self._on_start:
-                fn(ctx)
-        except Exception as e:  # noqa: BLE001 — a hook may raise anything; report it as a start failure.
-            return f"oxo: start hook raised: {e}"
         return None
 
     def _report_done(self, conn: connection.Connection, deliver_id: int, error: str | None) -> None:

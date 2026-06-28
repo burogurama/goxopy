@@ -50,9 +50,10 @@ class Result:
 class FakeEngine:
     """Plays the engine side of a run against an Agent over OS pipes.
 
-    It writes init then a caller-supplied phase, answers each emit with an ack
-    (ok when the selector is in declared outputs, error otherwise), records
-    pickups and dones, and stops once it has collected the expected dones.
+    It writes init then a caller-supplied phase of delivers, answers each emit
+    with an ack (ok when the selector is in declared outputs, error otherwise),
+    records pickups and dones, and stops once it has collected the expected
+    dones.
     """
 
     def __init__(self, target_agent: agent.Agent, outputs: collections.abc.Sequence[str]) -> None:
@@ -85,8 +86,8 @@ class FakeEngine:
         """Drive one run and return what the engine observed.
 
         Args:
-            write_phase: Writes the phase notes (delivers or a start) onto the
-                engine's stream after init.
+            write_phase: Writes the phase notes (delivers) onto the engine's
+                stream after init.
             expected_dones: How many dones to collect before closing stdin.
             protocol: The protocol version the init declares.
             send_init: Whether to send the init note at all; False leaves the
@@ -116,7 +117,9 @@ class FakeEngine:
         while len(self._result.dones) < expected_dones:
             try:
                 raw: dict[str, Any] = wire.read_frame(self._engine_read)
-            except EOFError, wire.Error:
+            except EOFError:
+                return
+            except wire.Error:
                 return
             self._record(raw)
 
@@ -134,7 +137,7 @@ class FakeEngine:
         ack: dict[str, Any] = {"type": note.TYPE_EMIT_ACK, "id": raw["id"], "status": note.STATUS_OK}
         if raw["selector"] in self._outputs:
             self._result.published.append(
-                Published(selector=raw["selector"], data=raw["data"], deliver=raw.get("deliver", note.START_ID))
+                Published(selector=raw["selector"], data=raw["data"], deliver=raw.get("deliver", 0))
             )
         else:
             ack["status"] = note.STATUS_ERROR

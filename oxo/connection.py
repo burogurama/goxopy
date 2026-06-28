@@ -55,8 +55,7 @@ class Connection:
         """Publish data on selector for the message named by deliver, then wait.
 
         Args:
-            deliver: The deliver id of the message this emit answers, or
-                note.START_ID for a start-phase emit.
+            deliver: The deliver id of the message this emit answers.
             selector: The declared output selector to publish on.
             data: The dict payload to publish.
 

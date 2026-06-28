@@ -1,8 +1,8 @@
 """The Python SDK for writing OXO agents hosted by the goxo engine.
 
-An author registers a handler per selector and an optional start hook, then
-calls run. Messages arrive as plain dicts and the package handles the wire;
-the engine owns the protobuf codec, so a handler never sees protobuf.
+An author registers a handler per selector, then calls run. Messages arrive as
+plain dicts and the package handles the wire; the engine owns the protobuf
+codec, so a handler never sees protobuf.
 
 For the engine and the note protocol, see https://github.com/burogurama/goxo.
 """
